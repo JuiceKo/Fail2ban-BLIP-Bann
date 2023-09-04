@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# URL du fichier à télécharger
+url="https://iplists.firehol.org/files/firehol_level1.netset"
+
+# Nom de fichier de destination local
+destination="firehol_level1.csv"
+
+# Télécharger le fichier depuis l'URL
+wget "$url" -O "$destination"
+
+# Vérifier si le téléchargement a réussi
+if [ $? -eq 0 ]; then
+    echo "Téléchargement terminé avec succès : $destination"
+
+    # Supprimer les lignes commençant par "#" dans le fichier
+    sed -i '/^#/d' "$destination"
+
+    # Lire chaque adresse IP du fichier et exécuter la commande fail2ban-cl>    while read -r ip; do
+        if [ -n "$ip" ]; then
+            sudo fail2ban-client set apache-404 banip "$ip"
+        fi
+    done < "$destination"
+
+    echo "Bannissement des IP terminé."
+else
+    echo "Échec du téléchargement depuis : $url"
+fi
