@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# URL du fichier à télécharger
+url="https://iplists.firehol.org/files/firehol_level1.netset"
+
+# Nom de fichier de destination local
+destination="firehol_level1.csv"
+ancienne_liste="old.csv"
+
+#Copie l'ancienne liste pour la comparer avec la nouvelle
+
+cp "$destination" "$ancienne_liste"
+
+# Télécharger le fichier depuis l'URL
+wget "$url" -O "$destination"
+
+# Vérifier si le téléchargement a réussi
+if [ $? -eq 0 ]; then
+    echo "Téléchargement terminé avec succès : $destination"
+
+    # Supprimer les lignes commençant par "#" dans le fichier
+    sed -i '/^#/d' "$destination"
+
+
+    if [ -e "$ancienne_liste" ]; then
+    # Extraire les adresses IP nouvelles dans le fichier nouvelles_ip.txt
+        comm -13 <(sort "$ancienne_liste") <(sort "$destination") | grep -E '\S' > nouvelles_ip.txt
+        comm -23 <(sort "$ancienne_liste") <(sort "$destination") | grep -E '\S' > anciennes_ip.txt
+        cat anciennes_ip.txt
+
+     while read -r ip; do
+        if [ -n "$ip" ]; then
+                sudo fail2ban-client set apache-404 banip "$ip"
+        fi
+     done < nouvelles_ip.txt
+     # Débannissement des anciennes IP
+     while read -r ip; do
+        if [ -n "$ip" ]; then
+                sudo fail2ban-client set apache-404 unbanip "$ip"
+        fi
+     done < anciennes_ip.txt
+    fi
+
+    # Adresses dans la Blacklist qu'on ne veut pas bannir, donc débannit une fois le processus finit
+    sudo fail2ban-client set apache-404 unbanip 10.0.0.0/8
+    sudo fail2ban-client set apache-404 unbanip 0.0.0.0/8
+    sudo fail2ban-client set apache-404 unbanip 127.0.0.0/8
+
+    echo "Bannissement des IP terminé."
+else
+    echo "Échec du téléchargement depuis : $url"
+fi
